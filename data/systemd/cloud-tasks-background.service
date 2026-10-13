@@ -1,0 +1,9 @@
+[Unit]
+Description=Cloud Tasks Apple sync and due notifications
+Conflicts=icloud-reminders-background.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/cloud-tasks background
+TimeoutStartSec=2min
+Nice=10

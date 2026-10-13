@@ -15,8 +15,10 @@ def parser():
     p = Parser(prog='cloud-tasks', description='Unified iCloud Reminders and Google Tasks')
     p.add_argument('--config', help='account config JSON (default XDG config directory)')
     p.add_argument('--app', action='store_true', help='open the native GTK app')
-    p.add_argument('--version', action='version', version='cloud-tasks 0.1.0')
+    p.add_argument('--version', action='version', version='cloud-tasks 0.2.0')
     sub = p.add_subparsers(dest='command')
+    sub.add_parser('background', help='sync the Apple provider and deliver due notifications')
+    sub.add_parser('migrate', help='adopt an existing legacy Apple cache without moving data')
     sub.add_parser('status', help='check configured accounts with provider reads')
     account = sub.add_parser('account').add_subparsers(dest='action', required=True)
     account.add_parser('list', help='list configuration; no credential access')
@@ -74,6 +76,10 @@ def dispatch(service, args):
         return service.edit(args.id, completion=args.command == 'complete')
     if args.command == 'delete':
         return service.delete(args.id, args.yes)
+    if args.command == 'background':
+        return service.background()
+    if args.command == 'migrate':
+        return service.migrate_legacy()
     if args.command == 'status':
         rows, warnings = service.list()
         return {'accounts': service.accounts(), 'visible_records': len(rows), 'healthy': not warnings}, warnings

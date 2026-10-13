@@ -56,6 +56,13 @@ class Tasks(Context):
         return [{'id': scoped_id(name, row['id']), 'raw_id': row['id'], 'account': name, 'provider': 'google',
                  'name': row['title'], 'capabilities': {'due_time': False}} for row in rows]
 
+    def background(self):
+        # Continue existing notification history after retiring the old package.
+        self.migrate_legacy()
+        if not any(cfg['provider'] == 'icloud' for cfg in self.accounts().values()):
+            return {'skipped': True, 'reason': 'no linked Apple account'}
+        return self.icloud(['background'])
+
     def lists(self, account=None):
         return self.collect(self.provider_lists, account)
 

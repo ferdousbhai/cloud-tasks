@@ -7,9 +7,11 @@ planning board.
 
 ## Install
 
-Python 3.10+ runs the CLI without Python packages. For the native app, install
+Python 3.10+ runs the CLI without Python packages. Source installation also needs
+Rust/Cargo to build the bundled private iCloud provider. For the native app, install
 PyGObject, GTK4, and libadwaita (Omarchy/Arch: `omarchy pkg add python-gobject gtk4
-libadwaita`). Install `icloud-reminders` and/or Google Workspace `gws` separately.
+libadwaita`). The iCloud backend ships with Cloud Tasks; only `icloud-session` remains shared.
+Install `gws` for Google access. The retired icloud-reminders package is not needed.
 
 ```sh
 git clone https://github.com/ferdousbhai/cloud-tasks.git
@@ -31,7 +33,7 @@ cloud-tasks account add google --name work
 cloud-tasks account list
 ```
 
-iCloud reuses `icloud-session` and the existing `icloud-reminders` CLI. If needed,
+iCloud reuses `icloud-session`; the protocol/sync backend belongs to Cloud Tasks. If needed,
 run `icloud-session sign-in` yourself; the apps and shared sign-in come from
 [icloud-for-omarchy](https://github.com/ferdousbhai/icloud-for-omarchy).
 
@@ -97,7 +99,7 @@ Docs/Chat, so consider that broader scope before deletion.
 - **Google supports due dates only.** `YYYY-MM-DD`, `today`, and `tomorrow` work.
   Due times, invalid dates, and other expressions are rejected before writing,
   never silently truncated. Tasks report `capabilities.due_time: false`.
-- **iCloud supports due dates/times** through the existing Reminders CLI.
+- **iCloud supports due dates/times** through the bundled iCloud provider.
   Existing Apple alarms keep their own times when a due date changes; edits
   report a warning when alarms are present. Change those alarms on Apple devices.
 - Recurrence, alarm configuration, list creation/deletion, list reordering, and
@@ -108,7 +110,7 @@ Docs/Chat, so consider that broader scope before deletion.
 The desktop app offers search, include-completed filtering, task creation,
 edits, completion/uncompletion, deletion confirmation, details, and account
 management. It uses the same application layer and provider adapters as the CLI.
-No notification service is started; iCloud's existing timer retains its role.
+Cloud Tasks owns the Apple notification timer (see migration below).
 
 ## Develop / remove
 
@@ -128,3 +130,38 @@ Remove a source install's `~/.local/bin/cloud-tasks`, its menu entry under
 and sign-ins remain unchanged.
 
 MIT licensed.
+
+## Replacing the legacy app
+
+The legacy standalone app is retired. This product ships the extracted Rust
+backend privately under its application directory, with protocol/fixture tests;
+there is no subprocess dependency on the legacy CLI or its package. The shared
+`icloud-session` service remains responsible for Apple sign-in.
+
+Run `cloud-tasks migrate` to adopt an existing Apple cache without contacting
+Apple or copying/moving files. The first native-app launch also adopts it.
+Legacy cache paths are intentionally retained so account identity, sync tokens,
+and existing records remain valid. Unlinking the account records that migration
+is handled, so a later run does not silently relink it.
+
+Arch packaging declares the legacy package replaced/conflicting. A source
+installation is not a pacman transaction: after the new provider is built and
+installed, remove the legacy package with the package manager. No provider data
+or cache directories should be deleted during retirement.
+
+Notification state stays in the existing Apple cache, preventing duplicate or
+backlog alerts. Install/start the replacement timer for a source installation:
+
+```sh
+cloud-tasks migrate
+systemctl --user disable --now icloud-reminders-background.timer
+systemctl --user daemon-reload
+systemctl --user enable --now cloud-tasks-background.timer
+```
+
+Skip disabling the old unit if it was never installed. The replacement unit
+conflicts with the old timer/service, preventing both from running together;
+notification clicks open Cloud Tasks. An Arch package installs/enables the new
+user timer for subsequent logins. `cloud-tasks background` handles due Apple
+reminders with the existing catch-up and once-per-due-time behavior. Google Tasks
+still exposes dates only and has no timed notification service here.

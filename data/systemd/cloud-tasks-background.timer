@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Cloud Tasks for due Apple reminders
+Conflicts=icloud-reminders-background.timer
+
+[Timer]
+OnBootSec=1min
+OnCalendar=*:*:00
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
