@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Cloud Tasks
+Exec=cloud-tasks --app
+Icon=view-list
+Terminal=false
+Categories=Office;
