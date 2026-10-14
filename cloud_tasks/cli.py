@@ -1,6 +1,8 @@
 import argparse
 import json
 import sys
+from pathlib import Path
+from . import __version__, agent_skill
 from .common import Failure
 from .service import Tasks
 
@@ -17,6 +19,8 @@ def parser():
     p.add_argument('--app', action='store_true', help='open the native GTK app')
     p.add_argument('--version', action='version', version='cloud-tasks 0.2.0')
     sub = p.add_subparsers(dest='command')
+    skill = sub.add_parser('skill', help='print the agent skill; install/remove it for coding agents (~/.agents/skills, linked for Claude Code)')
+    skill.add_argument('action', nargs='?', choices=['install', 'remove'])
     sub.add_parser('background', help='sync the Apple provider and deliver due notifications')
     sub.add_parser('migrate', help='adopt an existing legacy Apple cache without moving data')
     sub.add_parser('status', help='check configured accounts with provider reads')
@@ -98,10 +102,34 @@ def dispatch(service, args):
     raise Failure('invalid_request', 'Choose a command; see --help')
 
 
+SKILL = agent_skill.Skill('cloud-tasks', 'cloud-tasks', __version__, Path(__file__).resolve().parent.parent / 'skills' / 'cloud-tasks' / 'SKILL.md')
+
+
+def skill(action):
+    if action is None:
+        sys.stdout.write(SKILL.body)
+        return None
+    home = agent_skill.home()
+    if home is None:
+        raise Failure('local_error', 'no home directory to install the skill into')
+    try:
+        return agent_skill.install(home, SKILL) if action == 'install' else agent_skill.remove(home, SKILL)
+    except agent_skill.Unmanaged as error:
+        raise Failure('skill_unmanaged', str(error)) from None
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     args = parser().parse_args(argv)
+    home = agent_skill.home()
+    if home is not None:
+        agent_skill.refresh(home, SKILL)
     try:
+        if args.command == 'skill':
+            result = skill(args.action)
+            if result is not None:
+                print(json.dumps({'ok': True, 'data': result, 'meta': {'warnings': []}}, ensure_ascii=False))
+            return 0
         service = Tasks(args.config)
         if args.app or args.command is None:
             from .app import launch
