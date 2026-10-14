@@ -123,8 +123,7 @@ cloud-tasks skill remove
 ```
 
 A new release refreshes the installed copy automatically; only a copy cloud-tasks
-wrote (marked `.managed-by-cloud-tasks`) is ever changed. Before cloud-tasks is
-installed: `npx skills add ferdousbhai/cloud-tasks -g`.
+wrote (marked `.managed-by-cloud-tasks`) is ever changed.
 
 ## Develop / remove
 
