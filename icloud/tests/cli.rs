@@ -87,8 +87,7 @@ impl Env {
     }
 
     fn notifications(&self) -> Vec<Vec<String>> {
-        let log =
-            std::fs::read_to_string(self.dir.path().join("notifications.log")).unwrap_or_default();
+        let log = std::fs::read_to_string(self.dir.path().join("notifications.log")).unwrap_or_default();
         log.split("---\n")
             .filter(|n| !n.is_empty())
             .map(|n| n.lines().map(str::to_owned).collect())
@@ -158,16 +157,10 @@ fn lists_and_reminders_soonest_first() {
         ])
     );
     let open = env.json(&["list"]);
-    assert_eq!(
-        titles(&open),
-        ["Milk", "Call the dentist", "Renew passport", "Eggs"]
-    );
+    assert_eq!(titles(&open), ["Milk", "Call the dentist", "Renew passport", "Eggs"]);
     let milk = &open[0];
     assert_eq!(milk["id"], "REM-MILK");
-    assert_eq!(
-        milk["list"],
-        json!({"id": "LIST-GROCERIES", "name": "Groceries"})
-    );
+    assert_eq!(milk["list"], json!({"id": "LIST-GROCERIES", "name": "Groceries"}));
     assert_eq!(milk["notes"], "Oat, 2 cartons");
     assert_eq!(milk["due"]["all_day"], false);
     assert!(milk["due"]["at"].as_str().unwrap().ends_with('Z'));
@@ -230,25 +223,12 @@ fn add_writes_a_reminder_apple_can_read() {
     assert_eq!(rec["recordType"], "Reminder");
     assert_eq!(rec["parent"]["recordName"], "List/LIST-GROCERIES");
     assert_eq!(rec["fields"]["DueDate"]["value"], 1_893_572_100_000i64); // 2030-01-02T08:15Z
-    let stored = env
-        .state
-        .record(rec["recordName"].as_str().unwrap())
-        .unwrap();
+    let stored = env.state.record(rec["recordName"].as_str().unwrap()).unwrap();
     let title = stored["fields"]["TitleDocument"]["value"].as_str().unwrap();
-    assert_eq!(
-        cloud_tasks_icloud::topotext::decode(title).unwrap(),
-        "Buy bread"
-    );
+    assert_eq!(cloud_tasks_icloud::topotext::decode(title).unwrap(), "Buy bread");
 
     // An all-day due date.
-    let out = env.json(&[
-        "add",
-        "Pay rent",
-        "--list",
-        "Reminders",
-        "--due",
-        "2030-02-01",
-    ]);
+    let out = env.json(&["add", "Pay rent", "--list", "Reminders", "--due", "2030-02-01"]);
     assert_eq!(
         out["reminder"]["due"],
         json!({"date": "2030-02-01", "time": null, "all_day": true, "time_zone": null, "at": "2030-02-01T09:00:00Z"})
@@ -290,31 +270,15 @@ fn complete_uncomplete_edit_and_delete() {
     names.sort();
     assert_eq!(
         names,
-        [
-            "Completed",
-            "CompletionDate",
-            "LastModifiedDate",
-            "ResolutionTokenMap"
-        ]
+        ["Completed", "CompletionDate", "LastModifiedDate", "ResolutionTokenMap"]
     );
     // The phone's counter for `completed` was 3.
-    let tokens: Value =
-        serde_json::from_str(fields["ResolutionTokenMap"]["value"].as_str().unwrap()).unwrap();
+    let tokens: Value = serde_json::from_str(fields["ResolutionTokenMap"]["value"].as_str().unwrap()).unwrap();
     assert_eq!(tokens["map"]["completed"]["counter"], 4);
 
     // "milk" now finds the completed one only for uncomplete.
-    assert_eq!(
-        env.json(&["uncomplete", "milk"])["reminder"]["completed"],
-        false
-    );
-    let out = env.json(&[
-        "edit",
-        "milk",
-        "--title",
-        "Oat milk",
-        "--due",
-        "2031-05-06 07:00",
-    ]);
+    assert_eq!(env.json(&["uncomplete", "milk"])["reminder"]["completed"], false);
+    let out = env.json(&["edit", "milk", "--title", "Oat milk", "--due", "2031-05-06 07:00"]);
     assert_eq!(out["reminder"]["title"], "Oat milk");
     assert_eq!(out["reminder"]["due"]["date"], "2031-05-06");
     let out = env.json(&["edit", "oat milk", "--no-due", "--notes", ""]);
@@ -348,14 +312,7 @@ fn complete_and_uncomplete_pick_the_one_they_can_change() {
             None,
             now - MINUTE,
         ));
-        let mut done = fake::reminder(
-            "REM-DONE",
-            "List/LIST-GROCERIES",
-            "Buy milk",
-            "",
-            None,
-            now - MINUTE,
-        );
+        let mut done = fake::reminder("REM-DONE", "List/LIST-GROCERIES", "Buy milk", "", None, now - MINUTE);
         done["fields"]["Completed"]["value"] = json!(1);
         env.state.put(done);
         env
@@ -386,9 +343,7 @@ fn a_change_made_elsewhere_meanwhile_is_written_over_once() {
     env.json(&["list"]);
     // The phone renames it after our last sync: our change tag is stale.
     let mut phone = env.state.record("Reminder/REM-CALL").unwrap();
-    phone["fields"]["TitleDocument"]["value"] = json!(cloud_tasks_icloud::topotext::encode(
-        "Call the dentist at 9"
-    ));
+    phone["fields"]["TitleDocument"]["value"] = json!(cloud_tasks_icloud::topotext::encode("Call the dentist at 9"));
     env.state.put(phone);
 
     let out = env.json(&["--cached", "complete", "dentist"]);
@@ -407,10 +362,7 @@ fn a_change_made_elsewhere_meanwhile_is_written_over_once() {
     env.state.put(phone);
     let out = env.json(&["--cached", "complete", "eggs"]);
     assert_eq!(out["reminder"]["completed"], true);
-    assert_eq!(
-        env.ops()[env.ops().len() - 2..],
-        ["records/modify", "records/lookup"]
-    );
+    assert_eq!(env.ops()[env.ops().len() - 2..], ["records/modify", "records/lookup"]);
 }
 
 #[test]
@@ -418,10 +370,7 @@ fn sync_pages_and_recovers_from_an_expired_token() {
     let env = start();
     *env.state.page.lock().unwrap() = 1;
     let out = env.json(&["sync"]);
-    assert_eq!(
-        out,
-        json!({"lists": 2, "reminders": 5, "changed": 5, "full": true})
-    );
+    assert_eq!(out, json!({"lists": 2, "reminders": 5, "changed": 5, "full": true}));
     assert!(env.ops().len() >= 7, "one page per record: {:?}", env.ops());
 
     let out = env.json(&["sync"]);
@@ -448,8 +397,7 @@ fn an_unreadable_reminder_is_skipped_kept_and_named() {
     bad["fields"]["TitleDocument"]["value"] = json!("bm90IHpsaWI=");
     env.state.put(bad);
     let mut eggs = env.state.record("Reminder/REM-EGGS").unwrap();
-    eggs["fields"]["TitleDocument"]["value"] =
-        json!(cloud_tasks_icloud::topotext::encode("A dozen eggs"));
+    eggs["fields"]["TitleDocument"]["value"] = json!(cloud_tasks_icloud::topotext::encode("A dozen eggs"));
     env.state.put(eggs);
 
     // A delta, then a full fetch, which drops whatever it lacks: either way
@@ -460,15 +408,8 @@ fn an_unreadable_reminder_is_skipped_kept_and_named() {
         let report: Value = serde_json::from_slice(&out.stdout).unwrap();
         assert_eq!(report["reminders"], 5, "{args:?}");
         let warning = report["warning"].as_str().unwrap();
-        assert!(
-            warning.contains("Reminder/REM-CALL: TitleDocument"),
-            "{warning}"
-        );
-        assert!(
-            stderr(&out).contains("Reminder/REM-CALL"),
-            "{}",
-            stderr(&out)
-        );
+        assert!(warning.contains("Reminder/REM-CALL: TitleDocument"), "{warning}");
+        assert!(stderr(&out).contains("Reminder/REM-CALL"), "{}", stderr(&out));
         let open = titles(&env.json(&["--cached", "list"]));
         assert!(
             open.contains(&"Call the dentist".into()) && open.contains(&"A dozen eggs".into()),
@@ -486,11 +427,7 @@ fn signed_out_exits_2() {
     *env.state.signed_out.lock().unwrap() = true;
     let out = env.run(&["list"]);
     assert_eq!(code(&out), 2, "{}", stderr(&out));
-    assert!(
-        stderr(&out).contains("icloud-session sign-in"),
-        "{}",
-        stderr(&out)
-    );
+    assert!(stderr(&out).contains("icloud-session sign-in"), "{}", stderr(&out));
     let out = env.run(&["--json", "add", "x"]);
     let err: Value = serde_json::from_slice(&out.stderr).unwrap();
     assert_eq!(err["error"]["code"], "sign_in_required");
@@ -506,17 +443,9 @@ fn offline_is_an_error_and_cached_reads_need_no_network() {
     assert_eq!(code(&out), 1, "{}", stderr(&out));
     let err: Value = serde_json::from_str(stderr(&out).lines().last().unwrap()).unwrap();
     assert_eq!(err["error"]["code"], "offline");
-    let out = run_at(
-        "http://127.0.0.1:9",
-        env.dir.path(),
-        &["--json", "--cached", "list"],
-    );
+    let out = run_at("http://127.0.0.1:9", env.dir.path(), &["--json", "--cached", "list"]);
     assert_eq!(code(&out), 0, "{}", stderr(&out));
-    let out = run_at(
-        "http://127.0.0.1:9",
-        env.dir.path(),
-        &["--cached", "complete", "milk"],
-    );
+    let out = run_at("http://127.0.0.1:9", env.dir.path(), &["--cached", "complete", "milk"]);
     assert_eq!(code(&out), 1, "writes need the network");
 }
 
@@ -547,17 +476,11 @@ fn background_notifies_once_when_due() {
     let out = env.json(&["background"]);
     assert_eq!(out["synced"], false, "synced a moment ago");
     let out = env.json(&["background", "--sync"]);
-    assert_eq!(
-        out["notified"],
-        json!([{"id": "REM-NOW", "title": "Bread"}])
-    );
+    assert_eq!(out["notified"], json!([{"id": "REM-NOW", "title": "Bread"}]));
     let shown = env.notifications();
     assert_eq!(shown.len(), 1);
     let args = &shown[0];
-    assert_eq!(
-        args[..6],
-        ["--app-name", "Cloud Tasks", "-g", "󰢌", "-u", "normal"]
-    );
+    assert_eq!(args[..6], ["--app-name", "Cloud Tasks", "-g", "󰢌", "-u", "normal"]);
     assert_eq!(args[6], "Bread");
     assert!(args[7].starts_with("Groceries · "), "{args:?}");
     assert_eq!(args[8..], ["--exec", "cloud-tasks --app"]);
@@ -584,10 +507,7 @@ fn background_without_a_session_still_notifies_from_the_cache() {
     *env.state.signed_out.lock().unwrap() = true;
     let out = env.json(&["background", "--sync"]);
     assert_eq!(out["synced"], false);
-    assert!(
-        out["sync_error"].as_str().unwrap().contains("sign in"),
-        "{out}"
-    );
+    assert!(out["sync_error"].as_str().unwrap().contains("sign in"), "{out}");
     assert_eq!(out["notified"][0]["title"], "Stretch");
     // A failed attempt counts: the next minute does not try again.
     let out = env.json(&["background"]);
@@ -643,12 +563,8 @@ fn needed_libs(path: &str) -> Vec<String> {
             .map(|&h| vaddr - u64_at(h + 0x10) + u64_at(h + 0x08))
             .expect("address in a loaded segment")
     };
-    let dynamic = headers
-        .iter()
-        .find(|&&h| p_type(h) == 2)
-        .expect("dynamically linked");
-    let entries: Vec<(usize, usize)> = (u64_at(dynamic + 0x08)
-        ..u64_at(dynamic + 0x08) + u64_at(dynamic + 0x20))
+    let dynamic = headers.iter().find(|&&h| p_type(h) == 2).expect("dynamically linked");
+    let entries: Vec<(usize, usize)> = (u64_at(dynamic + 0x08)..u64_at(dynamic + 0x08) + u64_at(dynamic + 0x20))
         .step_by(16)
         .map(|e| (u64_at(e), u64_at(e + 8)))
         .take_while(|&(tag, _)| tag != 0)
@@ -670,20 +586,14 @@ fn needed_libs(path: &str) -> Vec<String> {
 fn the_command_line_binary_does_not_link_gtk() {
     let ui = |libs: Vec<String>| {
         libs.into_iter()
-            .filter(|l| {
-                ["libgtk-4.", "libadwaita-1."]
-                    .iter()
-                    .any(|p| l.starts_with(p))
-            })
+            .filter(|l| ["libgtk-4.", "libadwaita-1."].iter().any(|p| l.starts_with(p)))
             .count()
     };
     let cli = needed_libs(env!("CARGO_BIN_EXE_cloud-tasks-icloud"));
     assert!(cli.iter().any(|l| l.starts_with("libc.")), "{cli:?}");
     assert_eq!(ui(cli.clone()), 0, "{cli:?}");
     // Named but not built without the `ui` feature.
-    if let Some(app) =
-        option_env!("CARGO_BIN_EXE_cloud-tasks-icloud-app").filter(|p| Path::new(p).exists())
-    {
+    if let Some(app) = option_env!("CARGO_BIN_EXE_cloud-tasks-icloud-app").filter(|p| Path::new(p).exists()) {
         assert_eq!(ui(needed_libs(app)), 2);
     }
 }

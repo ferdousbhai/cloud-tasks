@@ -50,10 +50,7 @@ pub fn due_now<'c>(
             continue;
         }
         let already = state.fired.get(&r.id) == Some(&at);
-        let fresh = started
-            && !already
-            && at > now_ms - CATCH_UP_MS
-            && r.modified_ms.is_none_or(|m| m < at);
+        let fresh = started && !already && at > now_ms - CATCH_UP_MS && r.modified_ms.is_none_or(|m| m < at);
         if fresh {
             fire.push((at, r));
         }
@@ -92,21 +89,10 @@ pub fn text(r: &Reminder, cache: &Cache, local: &TimeZone) -> (String, String) {
 pub fn send(headline: &str, body: &str) -> Result<(), String> {
     let (headline, body) = (positional(headline), positional(body));
     let status = Command::new("omarchy-notification-send")
-        .args([
-            "--app-name",
-            APP_NAME,
-            "-g",
-            GLYPH,
-            "-u",
-            "normal",
-            &headline,
-            &body,
-        ])
+        .args(["--app-name", APP_NAME, "-g", GLYPH, "-u", "normal", &headline, &body])
         .args(["--exec", "cloud-tasks --app"])
         .status()
-        .map_err(|e| {
-            format!("cannot run omarchy-notification-send (is Omarchy installed?): {e}")
-        })?;
+        .map_err(|e| format!("cannot run omarchy-notification-send (is Omarchy installed?): {e}"))?;
     if status.success() {
         Ok(())
     } else {
@@ -214,11 +200,7 @@ mod tests {
     #[test]
     fn the_first_run_marks_the_backlog_without_firing() {
         let utc = TimeZone::UTC;
-        let c = cache(vec![reminder(
-            "Reminder/old",
-            Some("2026-10-09T09:00:00Z"),
-            None,
-        )]);
+        let c = cache(vec![reminder("Reminder/old", Some("2026-10-09T09:00:00Z"), None)]);
         let (fire, state) = due_now(&c, &Notified::default(), at("2026-10-09T10:00:00Z"), &utc);
         assert!(fire.is_empty());
         assert!(state.started);

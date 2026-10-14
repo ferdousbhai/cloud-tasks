@@ -111,9 +111,7 @@ impl<'a> Service<'a> {
         } else {
             Snapshot::new()
         };
-        let token = start
-            .sync_token
-            .filter(|_| start.account == account && !full);
+        let token = start.sync_token.filter(|_| start.account == account && !full);
         let (records, new_token, full) = match &token {
             Some(t) => match ck.all_changes(&["Reminder"], Some(t)) {
                 Ok((records, token)) => (records, token, false),
@@ -121,9 +119,7 @@ impl<'a> Service<'a> {
                 // zone level with BAD_REQUEST ("Unknown sync continuation type");
                 // the Notes engine recovers from the latter the same way
                 // (notes-sync/src/cloudkit/client.rs, fetch_zone_changes).
-                Err(Error::CloudKit { code, .. })
-                    if code == "CHANGE_TOKEN_EXPIRED" || code == "BAD_REQUEST" =>
-                {
+                Err(Error::CloudKit { code, .. }) if code == "CHANGE_TOKEN_EXPIRED" || code == "BAD_REQUEST" => {
                     let (records, token) = ck.all_changes(&["Reminder"], None)?;
                     (records, token, true)
                 }
@@ -162,20 +158,11 @@ impl<'a> Service<'a> {
             &skipped_ids,
         );
         // Lists come whole each time: a skipped one keeps its cached copy.
-        lists.extend(
-            cache
-                .lists
-                .drain(..)
-                .filter(|l| skipped_ids.contains(&l.id)),
-        );
+        lists.extend(cache.lists.drain(..).filter(|l| skipped_ids.contains(&l.id)));
         lists.sort_by_key(|l| l.name.to_lowercase());
         cache.lists = lists;
         // With a record skipped, the next sync asks from the same token.
-        cache.sync_token = if skipped.is_empty() {
-            Some(new_token)
-        } else {
-            token
-        };
+        cache.sync_token = if skipped.is_empty() { Some(new_token) } else { token };
         cache.synced_ms = Some(now_ms());
         self.store.save_cache(&cache).map_err(io)?;
         Ok(SyncReport {
@@ -217,13 +204,7 @@ impl<'a> Service<'a> {
     }
 
     /// Adds a reminder to `list_id`.
-    pub fn add(
-        &self,
-        list_id: &str,
-        title: &str,
-        notes: &str,
-        due: Option<&Due>,
-    ) -> Result<Saved<Reminder>> {
+    pub fn add(&self, list_id: &str, title: &str, notes: &str, due: Option<&Due>) -> Result<Saved<Reminder>> {
         let replica = self.store.replica().map_err(io)?;
         let uuid = uuid::Uuid::new_v4().to_string().to_uppercase();
         let ck = CloudKit::connect(self.t)?;
@@ -264,11 +245,7 @@ impl<'a> Service<'a> {
                         Err(Error::Other(format!("\"{}\" has been deleted", r.title)))
                     };
                 };
-                let left: Vec<Change> = changes
-                    .iter()
-                    .filter(|c| !has(&fresh, c))
-                    .cloned()
-                    .collect();
+                let left: Vec<Change> = changes.iter().filter(|c| !has(&fresh, c)).cloned().collect();
                 if left.is_empty() {
                     return Ok(Saved {
                         value: Some(fresh),
@@ -436,13 +413,7 @@ mod tests {
             ..Cache::default()
         });
         for full in [false, true] {
-            let out = merge(
-                &before,
-                BTreeMap::new(),
-                vec![live(&a)],
-                full,
-                &BTreeSet::new(),
-            );
+            let out = merge(&before, BTreeMap::new(), vec![live(&a)], full, &BTreeSet::new());
             assert!(out.is_empty(), "full={full}");
         }
     }
@@ -459,13 +430,7 @@ mod tests {
             reminders: map(vec![c.clone()]),
             ..Cache::default()
         });
-        let out = merge(
-            &before,
-            map(vec![b.clone(), c]),
-            vec![live(&a)],
-            true,
-            &BTreeSet::new(),
-        );
+        let out = merge(&before, map(vec![b.clone(), c]), vec![live(&a)], true, &BTreeSet::new());
         assert_eq!(out.keys().collect::<Vec<_>>(), ["Reminder/a", "Reminder/b"]);
     }
 
@@ -486,13 +451,7 @@ mod tests {
         );
         assert_eq!(out["Reminder/a"].change_tag.as_deref(), Some("t2"));
         let theirs = rem("Reminder/a", "t3", 30);
-        let out = merge(
-            &before,
-            map(vec![mine]),
-            vec![live(&theirs)],
-            false,
-            &BTreeSet::new(),
-        );
+        let out = merge(&before, map(vec![mine]), vec![live(&theirs)], false, &BTreeSet::new());
         assert_eq!(out["Reminder/a"].change_tag.as_deref(), Some("t3"));
     }
 }

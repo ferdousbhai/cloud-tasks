@@ -69,9 +69,7 @@ impl Cache {
         let mut rows: Vec<&Reminder> = self.reminders.values().filter(|r| keep(r)).collect();
         rows.sort_by_key(|r| {
             (
-                r.due
-                    .as_ref()
-                    .map_or(i64::MAX, |d| d.instant(local).as_millisecond()),
+                r.due.as_ref().map_or(i64::MAX, |d| d.instant(local).as_millisecond()),
                 position(r),
                 r.created_ms,
             )
@@ -175,10 +173,7 @@ impl Store {
 }
 
 fn damaged(path: &Path, e: impl std::fmt::Display) -> io::Error {
-    io::Error::other(format!(
-        "{} is damaged ({e}); delete it to start over",
-        path.display()
-    ))
+    io::Error::other(format!("{} is damaged ({e}); delete it to start over", path.display()))
 }
 
 /// `None` when the file does not exist.
@@ -188,9 +183,7 @@ fn read_json<T: DeserializeOwned>(path: &Path) -> io::Result<Option<T>> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(e) => return Err(e),
     };
-    serde_json::from_slice(&bytes)
-        .map(Some)
-        .map_err(|e| damaged(path, e))
+    serde_json::from_slice(&bytes).map(Some).map_err(|e| damaged(path, e))
 }
 
 fn write_json<T: Serialize>(path: &Path, v: &T) -> io::Result<()> {
@@ -209,9 +202,6 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
 /// A new file beside the target (the std library has no tempfile).
 fn tempfile_in(dir: &Path) -> io::Result<(PathBuf, File)> {
     let path = dir.join(format!(".tmp-{}", uuid::Uuid::new_v4().simple()));
-    let f = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)?;
+    let f = OpenOptions::new().write(true).create_new(true).open(&path)?;
     Ok((path, f))
 }

@@ -28,9 +28,7 @@ pub struct DecodeError(&'static str);
 /// (its magic number first) or else zlib-compressed. Anything else is an
 /// error.
 pub fn decode(b64: &str) -> Result<String, DecodeError> {
-    let raw = STANDARD
-        .decode(b64)
-        .map_err(|_| DecodeError("not base64"))?;
+    let raw = STANDARD.decode(b64).map_err(|_| DecodeError("not base64"))?;
     let mut data = Vec::new();
     let read = if raw.starts_with(GZIP_MAGIC) {
         flate2::read::GzDecoder::new(raw.as_slice()).read_to_end(&mut data)
@@ -67,8 +65,7 @@ pub fn encode(text: &str) -> String {
     const CLOCK_MAX: u64 = 0xFFFF_FFFF;
     // pyicloud's fixed replica UUID for documents it writes.
     const REPLICA: [u8; 16] = [
-        0xd4, 0x6b, 0xca, 0xe4, 0x1b, 0x87, 0x66, 0xc1, 0x8d, 0x75, 0xef, 0xe3, 0x5c, 0x91, 0x45,
-        0xc3,
+        0xd4, 0x6b, 0xca, 0xe4, 0x1b, 0x87, 0x66, 0xc1, 0x8d, 0x75, 0xef, 0xe3, 0x5c, 0x91, 0x45, 0xc3,
     ];
 
     let mut string = Vec::new();
@@ -213,13 +210,7 @@ mod tests {
 
     #[test]
     fn round_trips_any_text() {
-        for text in [
-            "",
-            "Milk",
-            "Call Ånne 📞 at 5",
-            "two\nlines",
-            &"x".repeat(5000),
-        ] {
+        for text in ["", "Milk", "Call Ånne 📞 at 5", "two\nlines", &"x".repeat(5000)] {
             assert_eq!(decode(&encode(text)).unwrap(), text, "{text:?}");
         }
     }

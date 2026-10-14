@@ -68,9 +68,7 @@ impl Due {
     /// in `local` when it floats.
     pub fn instant(&self, local: &TimeZone) -> Timestamp {
         let at = if self.all_day {
-            self.date()
-                .at(ALL_DAY_HOUR, 0, 0, 0)
-                .to_zoned(local.clone())
+            self.date().at(ALL_DAY_HOUR, 0, 0, 0).to_zoned(local.clone())
         } else {
             let zone = match &self.time_zone {
                 Some(name) => TimeZone::get(name).expect("checked by Due::read"),
@@ -95,11 +93,7 @@ impl Due {
     /// IANA name). Held to the same range as [`Due::read`], so whatever is
     /// written reads back.
     pub fn at(wall: DateTime, zone: &TimeZone) -> Result<Due, String> {
-        Due::read(
-            wall_as_utc(wall)?,
-            false,
-            zone.iana_name().map(str::to_owned),
-        )
+        Due::read(wall_as_utc(wall)?, false, zone.iana_name().map(str::to_owned))
     }
 
     pub fn on(date: Date) -> Result<Due, String> {
@@ -175,14 +169,11 @@ fn parse_time(s: &str) -> Option<Time> {
 /// it out until a zone is picked).
 pub fn local_zone() -> Result<TimeZone, String> {
     let unset = std::env::var_os("TZ").is_none()
-        && std::fs::symlink_metadata("/etc/localtime")
-            .is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound);
+        && std::fs::symlink_metadata("/etc/localtime").is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound);
     if unset {
         return Ok(TimeZone::UTC);
     }
-    TimeZone::try_system().map_err(|e| {
-        format!("cannot tell this machine's time zone (set TZ or /etc/localtime): {e}")
-    })
+    TimeZone::try_system().map_err(|e| format!("cannot tell this machine's time zone (set TZ or /etc/localtime): {e}"))
 }
 
 #[cfg(test)]
@@ -195,9 +186,7 @@ mod tests {
 
     fn now() -> Zoned {
         // Friday 2026-10-09 14:20 in Helsinki (UTC+3).
-        "2026-10-09T14:20:00+03:00[Europe/Helsinki]"
-            .parse()
-            .unwrap()
+        "2026-10-09T14:20:00+03:00[Europe/Helsinki]".parse().unwrap()
     }
 
     #[test]
@@ -235,10 +224,7 @@ mod tests {
         // 09:00 in New York (UTC-4) is 16:00 in Helsinki.
         assert_eq!(due.display(&helsinki()), "2026-10-10 16:00");
         // Floating: 09:00 wherever it is shown.
-        let floating = Due {
-            time_zone: None,
-            ..due
-        };
+        let floating = Due { time_zone: None, ..due };
         assert_eq!(floating.display(&helsinki()), "2026-10-10 09:00");
         assert_eq!(floating.display(&TimeZone::UTC), "2026-10-10 09:00");
     }

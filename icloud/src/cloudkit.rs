@@ -50,9 +50,7 @@ impl From<icloud_session::Error> for Error {
         match e {
             icloud_session::Error::SignInRequired => Error::SignInRequired,
             icloud_session::Error::Http { status, body } => Error::Http { status, body },
-            icloud_session::Error::Offline(m) | icloud_session::Error::Network(m) => {
-                Error::Offline(m)
-            }
+            icloud_session::Error::Offline(m) | icloud_session::Error::Network(m) => Error::Offline(m),
             icloud_session::Error::KeyringUnavailable(m) => Error::KeyringUnavailable(m),
             icloud_session::Error::BadResponse(m) => Error::BadResponse(m),
             other => Error::Other(other.to_string()),
@@ -88,18 +86,13 @@ pub struct SessionTransport {
 }
 
 impl SessionTransport {
-    fn with<T>(
-        &self,
-        f: impl FnOnce(&icloud_session::Session) -> icloud_session::Result<T>,
-    ) -> Result<T> {
+    fn with<T>(&self, f: impl FnOnce(&icloud_session::Session) -> icloud_session::Result<T>) -> Result<T> {
         let mut guard = self.session.lock().unwrap_or_else(|p| p.into_inner());
         if guard.is_none() {
             *guard = Some(icloud_session::Session::connect()?);
         }
         let result = f(guard.as_ref().expect("just connected"));
-        if let Err(icloud_session::Error::SignInRequired | icloud_session::Error::Service(_)) =
-            &result
-        {
+        if let Err(icloud_session::Error::SignInRequired | icloud_session::Error::Service(_)) = &result {
             *guard = None;
         }
         Ok(result?)
@@ -109,11 +102,9 @@ impl SessionTransport {
 impl Transport for SessionTransport {
     fn service_url(&self, key: &str) -> Result<String> {
         let ws = self.with(|s| s.webservices())?;
-        ws.url(key).map(str::to_owned).ok_or_else(|| {
-            Error::Other(format!(
-                "iCloud did not offer the {key} service for this account"
-            ))
-        })
+        ws.url(key)
+            .map(str::to_owned)
+            .ok_or_else(|| Error::Other(format!("iCloud did not offer the {key} service for this account")))
     }
 
     fn post_json(&self, url: &str, body: &Value) -> Result<Value> {
@@ -150,29 +141,16 @@ pub struct Record {
 
 impl Record {
     pub fn from_value(v: &Value) -> Option<Record> {
-        let error = v
-            .get("serverErrorCode")
-            .and_then(Value::as_str)
-            .map(|code| {
-                let reason = v.get("reason").and_then(Value::as_str).unwrap_or("");
-                (code.to_owned(), reason.to_owned())
-            });
+        let error = v.get("serverErrorCode").and_then(Value::as_str).map(|code| {
+            let reason = v.get("reason").and_then(Value::as_str).unwrap_or("");
+            (code.to_owned(), reason.to_owned())
+        });
         Some(Record {
             name: v.get("recordName")?.as_str()?.to_owned(),
-            record_type: v
-                .get("recordType")
-                .and_then(Value::as_str)
-                .map(str::to_owned),
-            change_tag: v
-                .get("recordChangeTag")
-                .and_then(Value::as_str)
-                .map(str::to_owned),
+            record_type: v.get("recordType").and_then(Value::as_str).map(str::to_owned),
+            change_tag: v.get("recordChangeTag").and_then(Value::as_str).map(str::to_owned),
             deleted: v.get("deleted").and_then(Value::as_bool).unwrap_or(false),
-            fields: v
-                .get("fields")
-                .and_then(Value::as_object)
-                .cloned()
-                .unwrap_or_default(),
+            fields: v.get("fields").and_then(Value::as_object).cloned().unwrap_or_default(),
             created_ms: v.pointer("/created/timestamp").and_then(Value::as_i64),
             modified_ms: v.pointer("/modified/timestamp").and_then(Value::as_i64),
             error,
@@ -211,11 +189,7 @@ impl Record {
 
     pub fn strings(&self, key: &str) -> Vec<String> {
         match self.value(key) {
-            Some(Value::Array(a)) => a
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_owned)
-                .collect(),
+            Some(Value::Array(a)) => a.iter().filter_map(Value::as_str).map(str::to_owned).collect(),
             _ => Vec::new(),
         }
     }
@@ -249,10 +223,7 @@ impl<'t> CloudKit<'t> {
 
     /// The session appends its client params (clientBuildNumber, dsid, ...).
     fn post(&self, op: &str, body: &Value) -> Result<Value> {
-        let url = format!(
-            "{}/{op}?remapEnums=true&getCurrentSyncToken=true",
-            self.base
-        );
+        let url = format!("{}/{op}?remapEnums=true&getCurrentSyncToken=true", self.base);
         let v = self.t.post_json(&url, body)?;
         server_error(&v)?;
         Ok(v)
@@ -262,15 +233,11 @@ impl<'t> CloudKit<'t> {
     /// zone). A zone-level error (an expired token) is returned, so the
     /// caller can start over without one.
     pub fn zone_changes(&self, types: &[&str], token: Option<&str>) -> Result<ZoneChanges> {
-        let mut zone =
-            json!({ "zoneID": zone_id(), "desiredRecordTypes": types, "reverse": false });
+        let mut zone = json!({ "zoneID": zone_id(), "desiredRecordTypes": types, "reverse": false });
         if let Some(t) = token {
             zone["syncToken"] = json!(t);
         }
-        let v = self.post(
-            "changes/zone",
-            &json!({ "zones": [zone], "resultsLimit": PAGE_LIMIT }),
-        )?;
+        let v = self.post("changes/zone", &json!({ "zones": [zone], "resultsLimit": PAGE_LIMIT }))?;
         let z = v
             .get("zones")
             .and_then(Value::as_array)
@@ -284,20 +251,13 @@ impl<'t> CloudKit<'t> {
                 .and_then(Value::as_str)
                 .ok_or_else(|| Error::Other("changes/zone returned no syncToken".into()))?
                 .to_owned(),
-            more_coming: z
-                .get("moreComing")
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
+            more_coming: z.get("moreComing").and_then(Value::as_bool).unwrap_or(false),
         })
     }
 
     /// Every record of `types` changed since `token` (all of them without
     /// one), page by page, and the token to ask from next time.
-    pub fn all_changes(
-        &self,
-        types: &[&str],
-        token: Option<&str>,
-    ) -> Result<(Vec<Record>, String)> {
+    pub fn all_changes(&self, types: &[&str], token: Option<&str>) -> Result<(Vec<Record>, String)> {
         let mut page = self.zone_changes(types, token)?;
         let mut records = std::mem::take(&mut page.records);
         while page.more_coming {
@@ -310,10 +270,7 @@ impl<'t> CloudKit<'t> {
     /// Records by name (missing ones come back with an error code).
     pub fn lookup(&self, names: &[&str]) -> Result<Vec<Record>> {
         let records: Vec<Value> = names.iter().map(|n| json!({ "recordName": n })).collect();
-        let v = self.post(
-            "records/lookup",
-            &json!({ "records": records, "zoneID": zone_id() }),
-        )?;
+        let v = self.post("records/lookup", &json!({ "records": records, "zoneID": zone_id() }))?;
         Ok(records_of(&v))
     }
 
@@ -333,11 +290,7 @@ fn server_error(v: &Value) -> Result<()> {
     match v.get("serverErrorCode").and_then(Value::as_str) {
         Some(code) => Err(Error::CloudKit {
             code: code.to_owned(),
-            reason: v
-                .get("reason")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_owned(),
+            reason: v.get("reason").and_then(Value::as_str).unwrap_or("").to_owned(),
         }),
         None => Ok(()),
     }

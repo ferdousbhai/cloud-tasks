@@ -117,8 +117,7 @@ impl State {
             now_ms - 120 * minute,
         );
         done["fields"]["Completed"] = int(1);
-        done["fields"]["CompletionDate"] =
-            json!({ "type": "TIMESTAMP", "value": now_ms - 100 * minute });
+        done["fields"]["CompletionDate"] = json!({ "type": "TIMESTAMP", "value": now_ms - 100 * minute });
         s.put(done);
         s
     }
@@ -136,12 +135,7 @@ impl State {
 
     /// A record as the server holds it now.
     pub fn record(&self, name: &str) -> Option<Value> {
-        self.zone
-            .lock()
-            .unwrap()
-            .records
-            .get(name)
-            .map(|s| s.record.clone())
+        self.zone.lock().unwrap().records.get(name).map(|s| s.record.clone())
     }
 
     /// Every request, oldest first: `{"op": "changes/zone", "body": ...}`.
@@ -238,9 +232,7 @@ impl State {
                 (Some("create"), Some(_)) => Some(("CONFLICT", "record exists")),
                 (Some("create"), None) => None,
                 (Some("update"), None) => Some(("NOT_FOUND", "no such record")),
-                (Some("update"), Some(s))
-                    if rec.get("recordChangeTag") != s.record.get("recordChangeTag") =>
-                {
+                (Some("update"), Some(s)) if rec.get("recordChangeTag") != s.record.get("recordChangeTag") => {
                     Some(("CONFLICT", "oplock error"))
                 }
                 (Some("update"), Some(_)) => None,
@@ -281,21 +273,14 @@ impl State {
             z.tags += 1;
             stored["recordChangeTag"] = json!(format!("tag-{}", z.tags));
             // CloudKit's own record times, as every record carries them.
-            let now =
-                json!({ "timestamp": icloud_session::time::now_ms(), "userRecordName": "_fake" });
+            let now = json!({ "timestamp": icloud_session::time::now_ms(), "userRecordName": "_fake" });
             if stored.get("created").is_none() {
                 stored["created"] = now.clone();
             }
             stored["modified"] = now;
             let seq = z.seq;
             out.push(stored.clone());
-            z.records.insert(
-                name,
-                Stored {
-                    seq,
-                    record: stored,
-                },
-            );
+            z.records.insert(name, Stored { seq, record: stored });
         }
         json!({ "records": out })
     }
@@ -315,10 +300,7 @@ impl State {
         let Some(op) = path.strip_prefix(DB).map(|p| p.trim_start_matches('/')) else {
             return (404, json!({ "error": "not found" }));
         };
-        self.requests
-            .lock()
-            .unwrap()
-            .push(json!({ "op": op, "body": sent }));
+        self.requests.lock().unwrap().push(json!({ "op": op, "body": sent }));
         match op {
             "changes/zone" => (200, self.changes(sent)),
             "records/lookup" => (200, self.lookup(sent)),
@@ -344,14 +326,7 @@ fn list(id: &str, name: &str, order: &[&str], hex: &str) -> Value {
 }
 
 /// A reminder record; `due_wall` is the wall clock read as UTC (ms).
-pub fn reminder(
-    uuid: &str,
-    list_id: &str,
-    title: &str,
-    notes: &str,
-    due_wall: Option<i64>,
-    modified_ms: i64,
-) -> Value {
+pub fn reminder(uuid: &str, list_id: &str, title: &str, notes: &str, due_wall: Option<i64>, modified_ms: i64) -> Value {
     let mut fields = Map::new();
     fields.insert("TitleDocument".into(), doc(title));
     fields.insert("NotesDocument".into(), doc(notes));
@@ -361,19 +336,13 @@ pub fn reminder(
     fields.insert("Flagged".into(), int(0));
     fields.insert("AllDay".into(), int(0));
     fields.insert("Priority".into(), int(0));
-    fields.insert(
-        "AlarmIDs".into(),
-        json!({ "type": "STRING_LIST", "value": [] }),
-    );
+    fields.insert("AlarmIDs".into(), json!({ "type": "STRING_LIST", "value": [] }));
     fields.insert(
         "ResolutionTokenMap".into(),
         json!({ "type": "STRING", "value": r#"{"map":{"completed":{"counter":3,"modificationTime":1.0,"replicaID":"PHONE"}}}"# }),
     );
     if let Some(due) = due_wall {
-        fields.insert(
-            "DueDate".into(),
-            json!({ "type": "TIMESTAMP", "value": due }),
-        );
+        fields.insert("DueDate".into(), json!({ "type": "TIMESTAMP", "value": due }));
     }
     let at = json!({ "timestamp": modified_ms, "userRecordName": "_fake" });
     json!({
@@ -426,9 +395,7 @@ pub fn serve_with(listener: TcpListener, state: Arc<State>) -> std::io::Result<(
 
 #[allow(dead_code)] // tests/cli.rs includes this file.
 fn main() -> std::io::Result<()> {
-    let addr = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "127.0.0.1:8765".into());
+    let addr = std::env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8765".into());
     let listener = TcpListener::bind(&addr)?;
     let base = format!("http://{}", listener.local_addr()?);
     let local = cloud_tasks_icloud::due::local_zone().map_err(std::io::Error::other)?;
@@ -438,8 +405,5 @@ fn main() -> std::io::Result<()> {
     eprintln!(
         "Run the app with: ICLOUD_SESSION_MOCK=1 ICLOUD_SESSION_MOCK_URL={base} cargo run -p cloud-tasks-icloud --bin cloud-tasks-icloud-app"
     );
-    serve_with(
-        listener,
-        Arc::new(State::seeded(now.as_millisecond(), offset_ms)),
-    )
+    serve_with(listener, Arc::new(State::seeded(now.as_millisecond(), offset_ms)))
 }

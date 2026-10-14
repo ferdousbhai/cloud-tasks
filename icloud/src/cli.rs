@@ -285,11 +285,7 @@ impl Cli<'_> {
     fn dispatch(&self, command: Command) -> Outcome {
         match command {
             Command::Lists => self.lists(),
-            Command::List {
-                list,
-                completed,
-                all,
-            } => self.list(list.as_deref(), completed, all),
+            Command::List { list, completed, all } => self.list(list.as_deref(), completed, all),
             Command::Show { reminder } => self.show(&reminder),
             Command::Add {
                 title,
@@ -324,10 +320,7 @@ impl Cli<'_> {
 
     fn print(&self, v: Value, text: impl FnOnce() -> String) {
         if self.json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&v).expect("JSON values serialize")
-            );
+            println!("{}", serde_json::to_string_pretty(&v).expect("JSON values serialize"));
         } else {
             print!("{}", text());
         }
@@ -345,9 +338,7 @@ impl Cli<'_> {
         let rows: Vec<Value> = cache
             .lists
             .iter()
-            .map(
-                |l| json!({ "id": bare(&l.id), "name": l.name, "color": l.color, "open": open(l) }),
-            )
+            .map(|l| json!({ "id": bare(&l.id), "name": l.name, "color": l.color, "open": open(l) }))
             .collect();
         self.print(json!(rows), || {
             if cache.lists.is_empty() {
@@ -368,10 +359,7 @@ impl Cli<'_> {
         let rows = cache.sorted(&self.local, |r| {
             list.is_none_or(|l| r.list_id == l.id) && (all || r.completed == completed)
         });
-        let json_rows: Vec<Value> = rows
-            .iter()
-            .map(|r| reminder_json(r, &cache, &self.local))
-            .collect();
+        let json_rows: Vec<Value> = rows.iter().map(|r| reminder_json(r, &cache, &self.local)).collect();
         self.print(json!(json_rows), || {
             if rows.is_empty() {
                 return "No reminders.\n".into();
@@ -386,19 +374,11 @@ impl Cli<'_> {
     fn show(&self, query: &str) -> Outcome {
         let cache = self.fresh()?;
         let r = resolve(&cache, query)?;
-        self.print(reminder_json(r, &cache, &self.local), || {
-            detail(r, &cache, &self.local)
-        });
+        self.print(reminder_json(r, &cache, &self.local), || detail(r, &cache, &self.local));
         Ok(())
     }
 
-    fn add(
-        &self,
-        title: &str,
-        list: Option<&str>,
-        notes: Option<String>,
-        due: Option<&str>,
-    ) -> Outcome {
+    fn add(&self, title: &str, list: Option<&str>, notes: Option<String>, due: Option<&str>) -> Outcome {
         if title.trim().is_empty() {
             return Err(usage("add needs a title"));
         }
@@ -407,22 +387,15 @@ impl Cli<'_> {
         let list = match list {
             Some(q) => resolve_list(&cache, q)?,
             None => cache.only_list().ok_or_else(|| {
-                let names: String = cache
-                    .lists
-                    .iter()
-                    .map(|l| format!("\n  {}", l.name))
-                    .collect();
+                let names: String = cache.lists.iter().map(|l| format!("\n  {}", l.name)).collect();
                 usage(format!(
                     "add needs --list LIST (iCloud records no default list); lists:{names}"
                 ))
             })?,
         };
-        let saved = self.svc.add(
-            &list.id,
-            title.trim(),
-            notes.as_deref().unwrap_or(""),
-            due.as_ref(),
-        )?;
+        let saved = self
+            .svc
+            .add(&list.id, title.trim(), notes.as_deref().unwrap_or(""), due.as_ref())?;
         let r = saved.value;
         self.done(
             "add",
@@ -433,8 +406,7 @@ impl Cli<'_> {
     }
 
     fn when(&self, w: &str) -> Result<Due, Failure> {
-        due::parse_when(w, &jiff::Zoned::now().with_time_zone(self.local.clone()))
-            .map_err(Failure::Usage)
+        due::parse_when(w, &jiff::Zoned::now().with_time_zone(self.local.clone())).map_err(Failure::Usage)
     }
 
     fn edit(
@@ -474,12 +446,7 @@ impl Cli<'_> {
         }
         let saved = self.svc.update(&r, &changes)?;
         let after = saved.value.ok_or_else(|| gone(&r))?;
-        self.done(
-            "edit",
-            &after,
-            &format!("Changed \"{}\"", after.title),
-            saved.warning,
-        )
+        self.done("edit", &after, &format!("Changed \"{}\"", after.title), saved.warning)
     }
 
     fn set_completed(&self, query: &str, completed: bool) -> Outcome {
@@ -501,7 +468,8 @@ impl Cli<'_> {
             (false, false) => format!("\"{}\" was already open", after.title),
         };
         let cache = self.svc.cache()?;
-        let mut out = json!({ "action": action, "changed": changed, "reminder": reminder_json(&after, &cache, &self.local) });
+        let mut out =
+            json!({ "action": action, "changed": changed, "reminder": reminder_json(&after, &cache, &self.local) });
         warn(&mut out, warning);
         self.print(out, || format!("{text}\n"));
         Ok(())
@@ -512,8 +480,7 @@ impl Cli<'_> {
         let r = resolve(&cache, query)?.clone();
         confirm(yes, &format!("Delete \"{}\"?", r.title))?;
         let saved = self.svc.update(&r, &[Change::Deleted])?;
-        let mut out =
-            json!({ "action": "delete", "reminder": { "id": bare(&r.id), "title": r.title } });
+        let mut out = json!({ "action": "delete", "reminder": { "id": bare(&r.id), "title": r.title } });
         warn(&mut out, saved.warning);
         self.print(out, || format!("Deleted \"{}\"\n", r.title));
         Ok(())
@@ -521,8 +488,7 @@ impl Cli<'_> {
 
     fn done(&self, action: &str, r: &Reminder, text: &str, warning: Option<String>) -> Outcome {
         let cache = self.svc.cache()?;
-        let mut out =
-            json!({ "action": action, "reminder": reminder_json(r, &cache, &self.local) });
+        let mut out = json!({ "action": action, "reminder": reminder_json(r, &cache, &self.local) });
         warn(&mut out, warning);
         self.print(out, || format!("{text}\n"));
         Ok(())
@@ -553,8 +519,7 @@ impl Cli<'_> {
             .cache()?
             .synced_ms
             .max(store.notified().map_err(file)?.sync_attempt_ms);
-        let stale =
-            last.is_none_or(|ms| service::now_ms() - ms >= service::SYNC_EVERY.as_millis() as i64);
+        let stale = last.is_none_or(|ms| service::now_ms() - ms >= service::SYNC_EVERY.as_millis() as i64);
         let attempted = (force_sync || stale).then(service::now_ms);
         let mut synced = false;
         let mut sync_error = None;
@@ -574,8 +539,7 @@ impl Cli<'_> {
         let _lock = store.lock().map_err(file)?;
         let cache = store.cache().map_err(file)?;
         let previous = store.notified().map_err(file)?;
-        let (fire, mut state) =
-            notify::due_now(&cache, &previous, jiff::Timestamp::now(), &self.local);
+        let (fire, mut state) = notify::due_now(&cache, &previous, jiff::Timestamp::now(), &self.local);
         state.sync_attempt_ms = attempted.or(state.sync_attempt_ms);
         let mut notified = Vec::new();
         for r in fire {
@@ -655,11 +619,7 @@ fn resolve<'c>(cache: &'c Cache, query: &str) -> Result<&'c Reminder, Failure> {
 /// part of the title; among the open ones first (`open`), or the completed.
 fn resolve_prefer<'c>(cache: &'c Cache, query: &str, open: bool) -> Result<&'c Reminder, Failure> {
     let q = query.trim();
-    if let Some(r) = cache
-        .reminders
-        .values()
-        .find(|r| r.id == q || r.uuid() == q)
-    {
+    if let Some(r) = cache.reminders.values().find(|r| r.id == q || r.uuid() == q) {
         return Ok(r);
     }
     let f = fold(q);
@@ -668,19 +628,9 @@ fn resolve_prefer<'c>(cache: &'c Cache, query: &str, open: bool) -> Result<&'c R
         let first: Vec<_> = rs.iter().copied().filter(|r| r.completed != open).collect();
         if first.is_empty() { rs } else { first }
     };
-    let exact = preferred(
-        all.iter()
-            .copied()
-            .filter(|r| fold(&r.title) == f)
-            .collect(),
-    );
+    let exact = preferred(all.iter().copied().filter(|r| fold(&r.title) == f).collect());
     let matches = if exact.is_empty() && !f.is_empty() {
-        preferred(
-            all.iter()
-                .copied()
-                .filter(|r| fold(&r.title).contains(&f))
-                .collect(),
-        )
+        preferred(all.iter().copied().filter(|r| fold(&r.title).contains(&f)).collect())
     } else {
         exact
     };
@@ -692,10 +642,7 @@ fn resolve_prefer<'c>(cache: &'c Cache, query: &str, open: bool) -> Result<&'c R
     };
     match matches.as_slice() {
         [r] => Ok(r),
-        [] => Err(Failure::Coded(
-            "not_found",
-            format!("no reminder matches \"{query}\""),
-        )),
+        [] => Err(Failure::Coded("not_found", format!("no reminder matches \"{query}\""))),
         many => Err(Failure::Coded(
             "ambiguous",
             format!(
@@ -715,19 +662,11 @@ fn resolve_list<'c>(cache: &'c Cache, query: &str) -> Result<&'c List, Failure> 
     let f = fold(q);
     let exact: Vec<&List> = cache.lists.iter().filter(|l| fold(&l.name) == f).collect();
     let matches = if exact.is_empty() && !f.is_empty() {
-        cache
-            .lists
-            .iter()
-            .filter(|l| fold(&l.name).contains(&f))
-            .collect()
+        cache.lists.iter().filter(|l| fold(&l.name).contains(&f)).collect()
     } else {
         exact
     };
-    let names = |ls: &[&List]| {
-        ls.iter()
-            .map(|l| format!("\n  {}", l.name))
-            .collect::<String>()
-    };
+    let names = |ls: &[&List]| ls.iter().map(|l| format!("\n  {}", l.name)).collect::<String>();
     match matches.as_slice() {
         [l] => Ok(l),
         [] => Err(Failure::Coded(
@@ -792,10 +731,7 @@ fn line(r: &Reminder, cache: &Cache, local: &TimeZone, with_list: bool) -> Strin
 
 fn detail(r: &Reminder, cache: &Cache, local: &TimeZone) -> String {
     let mut out = format!("{}\n", r.title);
-    let list = cache
-        .list(&r.list_id)
-        .map(|l| l.name.as_str())
-        .unwrap_or("?");
+    let list = cache.list(&r.list_id).map(|l| l.name.as_str()).unwrap_or("?");
     out += &format!("  list:      {list}\n");
     out += &format!("  id:        {}\n", r.uuid());
     let status = match r.completed_ms {
@@ -857,21 +793,12 @@ mod tests {
         assert_eq!(resolve(&cache, "Reminder/2").ok().unwrap().uuid(), "2");
         assert_eq!(resolve(&cache, "4").ok().unwrap().uuid(), "4");
         assert_eq!(resolve(&cache, "buy MILK").ok().unwrap().uuid(), "1");
-        assert_eq!(
-            resolve_prefer(&cache, "buy milk", false)
-                .ok()
-                .unwrap()
-                .uuid(),
-            "2"
-        );
+        assert_eq!(resolve_prefer(&cache, "buy milk", false).ok().unwrap().uuid(), "2");
         assert_eq!(resolve(&cache, "ann's").ok().unwrap().uuid(), "3");
         let Err(Failure::Coded("ambiguous", msg)) = resolve(&cache, "call") else {
             panic!("ambiguous")
         };
         assert!(msg.contains("Call Bob") && msg.contains("(3)"), "{msg}");
-        assert!(matches!(
-            resolve(&cache, "eggs"),
-            Err(Failure::Coded("not_found", _))
-        ));
+        assert!(matches!(resolve(&cache, "eggs"), Err(Failure::Coded("not_found", _))));
     }
 }

@@ -133,10 +133,7 @@ impl Reminder {
         };
         Ok(Parsed::Live(Box::new(Reminder {
             id: r.name.clone(),
-            list_id: r
-                .reference("List")
-                .ok_or_else(|| bad("no List".into()))?
-                .to_owned(),
+            list_id: r.reference("List").ok_or_else(|| bad("no List".into()))?.to_owned(),
             title,
             notes,
             completed: r.flag("Completed"),
@@ -185,17 +182,11 @@ pub fn update_fields(changes: &[Change], now_ms: i64) -> (Map<String, Value>, Ve
     for change in changes {
         match change {
             Change::Title(t) => {
-                fields.insert(
-                    "TitleDocument".into(),
-                    field("STRING", topotext::encode(t).into()),
-                );
+                fields.insert("TitleDocument".into(), field("STRING", topotext::encode(t).into()));
                 keys.push("titleDocument");
             }
             Change::Notes(n) => {
-                fields.insert(
-                    "NotesDocument".into(),
-                    field("STRING", topotext::encode(n).into()),
-                );
+                fields.insert("NotesDocument".into(), field("STRING", topotext::encode(n).into()));
                 keys.push("notesDocument");
             }
             Change::Completed(c) => {
@@ -208,10 +199,7 @@ pub fn update_fields(changes: &[Change], now_ms: i64) -> (Map<String, Value>, Ve
                 fields.insert("DueDate".into(), timestamp(due.as_ref().map(|d| d.wall_ms)));
                 fields.insert(
                     "AllDay".into(),
-                    field(
-                        "INT64",
-                        i64::from(due.as_ref().is_some_and(|d| d.all_day)).into(),
-                    ),
+                    field("INT64", i64::from(due.as_ref().is_some_and(|d| d.all_day)).into()),
                 );
                 fields.insert(
                     "TimeZone".into(),
@@ -249,12 +237,7 @@ const APPLE_EPOCH_SECS: f64 = 978_307_200.0;
 /// (pyicloud's fixtures have none): a fresh map, as pyicloud always
 /// writes. A map that is not that shape is an error: writing over it would
 /// throw away Apple's merge state.
-pub fn bump_tokens(
-    existing: Option<&str>,
-    keys: &[&str],
-    replica: &str,
-    now_ms: i64,
-) -> Result<String, String> {
+pub fn bump_tokens(existing: Option<&str>, keys: &[&str], replica: &str, now_ms: i64) -> Result<String, String> {
     let mut root = match existing {
         None => json!({ "map": {} }),
         Some(s) => serde_json::from_str::<Value>(s)
@@ -285,17 +268,9 @@ pub fn bump_tokens(
 
 /// The records/modify operation for an update of `r`, with the change tag
 /// and tokens last read (CloudKit refuses it if the record has changed).
-pub fn update_op(
-    r: &Reminder,
-    changes: &[Change],
-    replica: &str,
-    now_ms: i64,
-) -> Result<Value, String> {
+pub fn update_op(r: &Reminder, changes: &[Change], replica: &str, now_ms: i64) -> Result<Value, String> {
     let bad = |what: &str| format!("{}: {what}", r.id);
-    let tag = r
-        .change_tag
-        .as_deref()
-        .ok_or_else(|| bad("no recordChangeTag"))?;
+    let tag = r.change_tag.as_deref().ok_or_else(|| bad("no recordChangeTag"))?;
     let (mut fields, keys) = update_fields(changes, now_ms);
     let tokens = bump_tokens(r.tokens.as_deref(), &keys, replica, now_ms).map_err(|e| bad(&e))?;
     fields.insert("ResolutionTokenMap".into(), field("STRING", tokens.into()));
@@ -349,20 +324,11 @@ pub fn create_op(
     put("LastModifiedDate", timestamp(Some(now_ms)));
     put(
         "List",
-        field(
-            "REFERENCE",
-            json!({ "recordName": list_id, "action": "VALIDATE" }),
-        ),
+        field("REFERENCE", json!({ "recordName": list_id, "action": "VALIDATE" })),
     );
-    put(
-        "NotesDocument",
-        field("STRING", topotext::encode(notes).into()),
-    );
+    put("NotesDocument", field("STRING", topotext::encode(notes).into()));
     put("Priority", field("INT64", 0.into()));
-    put(
-        "TitleDocument",
-        field("STRING", topotext::encode(title).into()),
-    );
+    put("TitleDocument", field("STRING", topotext::encode(title).into()));
     if let Some(d) = due {
         put("DueDate", timestamp(Some(d.wall_ms)));
         keys.push("dueDate");
@@ -375,9 +341,7 @@ pub fn create_op(
         "ResolutionTokenMap",
         field(
             "STRING",
-            bump_tokens(None, &keys, replica, now_ms)
-                .expect("a fresh map")
-                .into(),
+            bump_tokens(None, &keys, replica, now_ms).expect("a fresh map").into(),
         ),
     );
     json!({
@@ -434,10 +398,7 @@ mod tests {
         assert_eq!(r.title, "Fixture Reminder");
         assert_eq!(r.notes, "Fixture notes");
         assert!(!r.completed);
-        assert_eq!(
-            r.due,
-            Some(Due::read(1_735_862_400_000, false, None).unwrap())
-        );
+        assert_eq!(r.due, Some(Due::read(1_735_862_400_000, false, None).unwrap()));
         assert_eq!(r.created_ms, Some(1_735_689_600_000));
         assert_eq!(r.modified_ms, Some(1_735_776_000_000));
         assert_eq!(r.change_tag.as_deref(), Some("reminder-change-tag-fixture"));
@@ -449,9 +410,7 @@ mod tests {
             "../tests/fixtures/pyicloud/reminders_query_lists_response.json"
         ))
         .unwrap();
-        let l = List::from_record(&record(v["records"][0].clone()))
-            .unwrap()
-            .unwrap();
+        let l = List::from_record(&record(v["records"][0].clone())).unwrap().unwrap();
         assert_eq!(l.id, "List/LIST-A");
         assert_eq!(l.name, "Synthetic List");
         assert_eq!(l.order, vec!["REM-FIXTURE"]);
@@ -460,17 +419,13 @@ mod tests {
     #[test]
     fn deleted_and_tombstoned_reminders_are_gone() {
         let mut r = fixture_reminder();
-        r.fields
-            .insert("Deleted".into(), json!({"type": "INT64", "value": 1}));
+        r.fields.insert("Deleted".into(), json!({"type": "INT64", "value": 1}));
         assert_eq!(
             Reminder::from_record(&r),
             Ok(Parsed::Gone("Reminder/REM-FIXTURE".into()))
         );
         let tomb = record(json!({"recordName": "Reminder/X", "deleted": true}));
-        assert_eq!(
-            Reminder::from_record(&tomb),
-            Ok(Parsed::Gone("Reminder/X".into()))
-        );
+        assert_eq!(Reminder::from_record(&tomb), Ok(Parsed::Gone("Reminder/X".into())));
     }
 
     #[test]
@@ -481,33 +436,18 @@ mod tests {
             json!({"type": "ENCRYPTED_BYTES", "value": "bm90IHpsaWI="}),
         );
         let err = Reminder::from_record(&r).unwrap_err();
-        assert!(
-            err.starts_with("Reminder/REM-FIXTURE: TitleDocument"),
-            "{err}"
-        );
+        assert!(err.starts_with("Reminder/REM-FIXTURE: TitleDocument"), "{err}");
         let mut r = fixture_reminder();
-        r.fields.insert(
-            "TimeZone".into(),
-            json!({"type": "STRING", "value": "Mars/Olympus"}),
-        );
-        assert!(
-            Reminder::from_record(&r)
-                .unwrap_err()
-                .contains("Mars/Olympus")
-        );
+        r.fields
+            .insert("TimeZone".into(), json!({"type": "STRING", "value": "Mars/Olympus"}));
+        assert!(Reminder::from_record(&r).unwrap_err().contains("Mars/Olympus"));
     }
 
     #[test]
     fn tokens_are_raised_and_others_kept() {
         let existing = r#"{"map":{"completed":{"counter":4,"modificationTime":1.5,"replicaID":"A"},"titleDocument":{"counter":2,"modificationTime":1.0,"replicaID":"B"}}}"#;
         let out: Value = serde_json::from_str(
-            &bump_tokens(
-                Some(existing),
-                &["completed", "lastModifiedDate"],
-                "ME",
-                1_000_000,
-            )
-            .unwrap(),
+            &bump_tokens(Some(existing), &["completed", "lastModifiedDate"], "ME", 1_000_000).unwrap(),
         )
         .unwrap();
         assert_eq!(out["map"]["completed"]["counter"], 5);
@@ -517,9 +457,7 @@ mod tests {
             out["map"]["titleDocument"],
             json!({"counter": 2, "modificationTime": 1.0, "replicaID": "B"})
         );
-        let t = out["map"]["completed"]["modificationTime"]
-            .as_f64()
-            .unwrap();
+        let t = out["map"]["completed"]["modificationTime"].as_f64().unwrap();
         assert!((t - (1000.0 - APPLE_EPOCH_SECS)).abs() < 1e-6, "{t}");
         assert!(bump_tokens(Some(r#"{"map":3}"#), &["deleted"], "ME", 0).is_err());
     }
@@ -541,12 +479,7 @@ mod tests {
         names.sort();
         assert_eq!(
             names,
-            [
-                "Completed",
-                "CompletionDate",
-                "LastModifiedDate",
-                "ResolutionTokenMap"
-            ]
+            ["Completed", "CompletionDate", "LastModifiedDate", "ResolutionTokenMap"]
         );
 
         let op = update_op(&r, &[Change::Completed(false), Change::Due(None)], "ME", 5).unwrap();
