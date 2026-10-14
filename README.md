@@ -112,6 +112,15 @@ edits, completion/uncompletion, deletion confirmation, details, and account
 management. It uses the same application layer and provider adapters as the CLI.
 Cloud Tasks owns the Apple notification timer (see migration below).
 
+## Agent skill
+
+[skills/cloud-tasks/SKILL.md](skills/cloud-tasks/SKILL.md) teaches AI agents to install,
+link, and use cloud-tasks. Install it for your agents with:
+
+```sh
+npx skills add ferdousbhai/cloud-tasks -g
+```
+
 ## Develop / remove
 
 ```sh
