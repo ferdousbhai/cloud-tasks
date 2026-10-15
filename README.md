@@ -178,3 +178,9 @@ notification clicks open Cloud Tasks. An Arch package installs/enables the new
 user timer for subsequent logins. `cloud-tasks background` handles due Apple
 reminders with the existing catch-up and once-per-due-time behavior. Google Tasks
 still exposes dates only and has no timed notification service here.
+
+## Optional Recall search
+
+Use `~ QUERY` in the Tasks search field, or `cloud-tasks list --semantic QUERY`. Account, list, and completion filters still apply.
+
+Recall is an optional extra. Normal operation never contacts it. Missing, incompatible, busy, or warming-up Recall leaves task text search available. Requests run in the background with a bounded wait. This project does not install Recall, download embedding weights, or start its own model runtime. When enabled, the owner-local Recall service owns one shared model cache and inference worker; records stay on this machine.

@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from . import __version__, agent_skill, cli_output
 from .common import Failure
+from . import recall_client
 from .service import Tasks
 
 
@@ -35,6 +36,7 @@ def parser():
     lists = sub.add_parser('lists')
     lists.add_argument('--account')
     listing = sub.add_parser('list')
+    listing.add_argument('--semantic', metavar='QUERY', help='rank current account/list records with local Recall; text fallback when unavailable')
     listing.add_argument('--list', dest='list_id')
     listing.add_argument('--account')
     mode = listing.add_mutually_exclusive_group()
@@ -66,7 +68,16 @@ def dispatch(service, args):
     if args.command == 'lists':
         return service.lists(args.account)
     if args.command == 'list':
-        return service.list(args.list_id, args.account, args.all, args.completed)
+        rows, warnings = service.list(args.list_id, args.account, args.all, args.completed)
+        if args.semantic:
+            ids = recall_client.rank('cloud-tasks', args.semantic, recall_client.records(rows))
+            if ids is None:
+                warnings = warnings + [{'account': '', 'message': 'Recall unavailable or warming up; showing text matches'}]
+                rows = [row for row in rows if args.semantic.casefold() in json.dumps(row, ensure_ascii=False).casefold()]
+            else:
+                by_id = {row['id']: row for row in rows}
+                rows = [by_id[identity] for identity in ids]
+        return rows, warnings
     if args.command == 'show':
         return service.show(args.id)
     if args.command == 'add':
