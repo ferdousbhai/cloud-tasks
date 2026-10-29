@@ -15,7 +15,7 @@ def parser():
     p = Parser(prog='cloud-tasks', description='Unified iCloud Reminders and Google Tasks')
     p.add_argument('--config', help='account config JSON (default XDG config directory)')
     p.add_argument('--app', action='store_true', help='open the native GTK app')
-    p.add_argument('--version', action='version', version='cloud-tasks 0.2.0')
+    p.add_argument('--version', action='version', version=f'cloud-tasks {__version__}')
     sub = p.add_subparsers(dest='command')
     skill = sub.add_parser('skill', help='print the agent skill; install/remove it for coding agents (~/.agents/skills, linked for Claude Code)')
     skill.add_argument('action', nargs='?', choices=['install', 'remove'])
