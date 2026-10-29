@@ -13,6 +13,16 @@ PyGObject, GTK4, and libadwaita (Omarchy/Arch: `omarchy pkg add python-gobject g
 libadwaita`). The iCloud backend ships with Cloud Tasks; only `icloud-session` remains shared.
 Install `gws` for Google access. The retired icloud-reminders package is not needed.
 
+On Omarchy and other Arch Linux systems (x86_64 or aarch64), install the signed package:
+
+```sh
+curl -fsSL https://github.com/ferdousbhai/cloud-tasks/releases/latest/download/install.sh | sudo bash
+```
+
+The installer trusts the package-signing key (pinned by fingerprint, the same key the other
+Cloud apps use), adds the `[cloud-tasks]` repository (`[cloud-tasks-aarch64]` on ARM) and
+installs the package; updates then arrive with `omarchy update`. To install from source instead:
+
 ```sh
 git clone https://github.com/ferdousbhai/cloud-tasks.git
 cd cloud-tasks
@@ -22,8 +32,7 @@ cloud-tasks --app
 
 The source installer installs into `~/.local`, including an application-menu
 entry, without sudo. Ensure `~/.local/bin` is on PATH. An optional first argument
-sets another prefix. Re-run it after updating the checkout. There is an Arch
-`packaging/PKGBUILD` for local builds; no published signed package repository yet.
+sets another prefix. Re-run it after updating the checkout.
 
 ## Link accounts
 
