@@ -146,6 +146,28 @@ fn titles(v: &Value) -> Vec<String> {
 }
 
 #[test]
+fn snapshot_syncs_once_and_matches_cached_lists_and_reminders() {
+    let env = start();
+    let snapshot = env.json(&["snapshot"]);
+    // One sync asks for all Lists and all Reminders, regardless of list count.
+    let changes = env.sent("changes/zone");
+    assert_eq!(changes.len(), 2);
+    assert_eq!(snapshot["lists"], env.json(&["--cached", "lists"]));
+    assert_eq!(snapshot["reminders"], env.json(&["--cached", "list", "--all"]));
+    assert_eq!(snapshot, env.json(&["--cached", "snapshot"]));
+    assert_eq!(env.sent("changes/zone").len(), 2);
+    assert!(snapshot.get("warning").is_none());
+    let filtered = env.json(&["--cached", "snapshot", "--list", "LIST-GROCERIES"]);
+    assert_eq!(filtered["lists"], snapshot["lists"]);
+    assert_eq!(
+        filtered["reminders"],
+        env.json(&["--cached", "list", "LIST-GROCERIES", "--all"])
+    );
+    assert!(filtered["reminders"].as_array().unwrap().len() < snapshot["reminders"].as_array().unwrap().len());
+    assert_eq!(env.sent("changes/zone").len(), 2);
+}
+
+#[test]
 fn lists_and_reminders_soonest_first() {
     let env = start();
     let lists = env.json(&["lists"]);
@@ -416,6 +438,10 @@ fn an_unreadable_reminder_is_skipped_kept_and_named() {
             "{open:?}"
         );
     }
+    // The frontend snapshot carries partial-sync warnings alongside retained data.
+    let snapshot = env.json(&["snapshot"]);
+    assert!(snapshot["warning"].as_str().unwrap().contains("Reminder/REM-CALL"));
+    assert!(titles(&snapshot["reminders"]).contains(&"Call the dentist".into()));
     // The token stayed put, so a plain sync fetches the bad record again.
     assert!(env.json(&["sync"])["warning"].is_string());
     assert!(env.sent("records/modify").is_empty());

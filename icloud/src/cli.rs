@@ -8,6 +8,7 @@
 //! With `--json` an error is one JSON line on stderr,
 //! `{"error":{"code","message","exit_code"}}`.
 
+use std::collections::BTreeMap;
 use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 
@@ -77,6 +78,12 @@ enum Command {
     /// JSON: [{id, name, color, open}]
     #[command(after_help = AFTER_HELP)]
     Lists,
+    /// Lists and every reminder from one sync/cache read, for the Python frontend.
+    #[command(hide = true)]
+    Snapshot {
+        #[arg(long, value_name = "LIST")]
+        list: Option<String>,
+    },
     /// Open reminders, soonest due first (undated last).
     ///
     /// Every list's, or one list's. --completed lists only completed ones,
@@ -285,6 +292,7 @@ impl Cli<'_> {
     fn dispatch(&self, command: Command) -> Outcome {
         match command {
             Command::Lists => self.lists(),
+            Command::Snapshot { list } => self.snapshot(list.as_deref()),
             Command::List { list, completed, all } => self.list(list.as_deref(), completed, all),
             Command::Show { reminder } => self.show(&reminder),
             Command::Add {
@@ -310,12 +318,41 @@ impl Cli<'_> {
 
     /// The cache after a sync, or as the last sync left it with `--cached`.
     fn fresh(&self) -> Result<Cache, Failure> {
-        if !self.cached
-            && let Some(w) = self.svc.sync(false)?.warning()
-        {
-            eprintln!("{TOOL}: {w}");
+        let (cache, warning) = self.fresh_with_warning()?;
+        if let Some(warning) = warning {
+            eprintln!("{TOOL}: {warning}");
         }
-        Ok(self.svc.cache()?)
+        Ok(cache)
+    }
+
+    fn fresh_with_warning(&self) -> Result<(Cache, Option<String>), Failure> {
+        let warning = if self.cached {
+            None
+        } else {
+            self.svc.sync(false)?.warning()
+        };
+        Ok((self.svc.cache()?, warning))
+    }
+
+    fn snapshot(&self, list: Option<&str>) -> Outcome {
+        // A single sync is authoritative for all lists. Re-running a read command
+        // per list would sync CloudKit again and could mix different snapshots.
+        let (cache, warning) = self.fresh_with_warning()?;
+        let lists = lists_json(&cache);
+        let selected = list.map(|query| resolve_list(&cache, query)).transpose()?;
+        let reminders: Vec<Value> = cache
+            .sorted(&self.local, |r| selected.is_none_or(|list| r.list_id == list.id))
+            .iter()
+            .map(|r| reminder_json(r, &cache, &self.local))
+            .collect();
+        let mut value = json!({ "lists": lists, "reminders": reminders });
+        if let Some(warning) = warning {
+            value["warning"] = json!(warning);
+        }
+        self.print(value, || {
+            format!("{} lists and {} reminders.\n", lists.len(), reminders.len())
+        });
+        Ok(())
     }
 
     fn print(&self, v: Value, text: impl FnOnce() -> String) {
@@ -335,11 +372,7 @@ impl Cli<'_> {
                 .filter(|r| r.list_id == l.id && !r.completed)
                 .count()
         };
-        let rows: Vec<Value> = cache
-            .lists
-            .iter()
-            .map(|l| json!({ "id": bare(&l.id), "name": l.name, "color": l.color, "open": open(l) }))
-            .collect();
+        let rows = lists_json(&cache);
         self.print(json!(rows), || {
             if cache.lists.is_empty() {
                 return "No lists.\n".into();
@@ -692,6 +725,23 @@ pub fn due_json(d: &Due, local: &TimeZone) -> Value {
         "time_zone": d.time_zone,
         "at": rfc3339(d.instant(local).as_second()),
     })
+}
+
+fn lists_json(cache: &Cache) -> Vec<Value> {
+    let mut open = BTreeMap::new();
+    for reminder in cache.reminders.values().filter(|r| !r.completed) {
+        *open.entry(reminder.list_id.as_str()).or_insert(0usize) += 1;
+    }
+    cache
+        .lists
+        .iter()
+        .map(|list| {
+            json!({
+                "id": bare(&list.id), "name": list.name, "color": list.color,
+                "open": open.get(list.id.as_str()).copied().unwrap_or(0),
+            })
+        })
+        .collect()
 }
 
 fn reminder_json(r: &Reminder, cache: &Cache, local: &TimeZone) -> Value {

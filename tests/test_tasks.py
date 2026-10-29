@@ -80,3 +80,51 @@ class TaskTests(unittest.TestCase):
             result = self.service.add('Task', scoped_id('icloud', 'List/one'))
             self.assertEqual(result['task']['id'], scoped_id('icloud', 'Reminder/one'))
             self.assertNotIn('reminder', result)
+
+    def snapshot(self):
+        return {'lists': [{'id': str(i), 'name': f'List {i}', 'color': '#123456', 'open': 1} for i in range(10)],
+                'reminders': [{'id': f'task-{i}', 'title': f'Task {i}', 'completed': i % 2 == 0,
+                               'list': {'id': str(i), 'name': f'List {i}'}, 'unknown_field': {'keep': True}}
+                              for i in range(10)]}
+
+    def test_icloud_listing_uses_one_snapshot_for_every_list(self):
+        with patch.object(self.service, 'icloud', return_value=self.snapshot()) as call:
+            rows, warnings = self.service.list(account='icloud', include_completed=True)
+        call.assert_called_once_with(['snapshot'])
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(warnings, [])
+        self.assertEqual(rows[0]['source']['unknown_field'], {'keep': True})
+        self.assertTrue(all(row['list_id'] == scoped_id('icloud', row['source']['list']['id']) for row in rows))
+
+    def test_icloud_snapshot_filters_selected_list_and_completion(self):
+        with patch.object(self.service, 'icloud', return_value=self.snapshot()) as call:
+            rows, _ = self.service.list(scoped_id('icloud', '3'))
+            self.assertEqual([row['id'] for row in rows], [scoped_id('icloud', 'task-3')])
+            rows, _ = self.service.list(account='icloud', completed=True)
+            self.assertEqual(len(rows), 5)
+            self.assertTrue(all(row['completed'] for row in rows))
+            with self.assertRaises(Failure):
+                self.service.list(scoped_id('icloud', 'missing'))
+        self.assertEqual([args.args[0] for args in call.call_args_list], [['snapshot', '--list', '3'], ['snapshot'], ['snapshot', '--list', 'missing']])
+
+    def test_icloud_snapshot_keeps_partial_sync_warning(self):
+        snapshot = self.snapshot()
+        snapshot['warning'] = 'Skipped an unreadable reminder; cached copy retained'
+        with patch.object(self.service, 'icloud', return_value=snapshot):
+            rows, warnings = self.service.list(account='icloud')
+        self.assertEqual(len(rows), 5)
+        self.assertEqual(warnings, [{'account': 'icloud', 'code': 'partial_sync', 'message': snapshot['warning']}])
+
+    def test_invalid_icloud_snapshot_does_not_discard_other_account_results(self):
+        valid = self.snapshot()
+        for snapshot in [[], {}, {**valid, 'warning': 12}, {**valid, 'reminders': [{'id': 'broken', 'list': {}}]}]:
+            with self.subTest(snapshot=snapshot), patch.object(self.service, 'icloud', return_value=snapshot), \
+                 patch.object(self.service, 'pages', return_value=[{'id': 'google-task', 'title': 'Google survives', 'status': 'needsAction'}]):
+                rows, warnings = self.service.list()
+                self.assertEqual([row['title'] for row in rows], ['Google survives'])
+                self.assertEqual(len(warnings), 1)
+                self.assertEqual(warnings[0]['code'], 'bad_response')
+
+    def test_empty_icloud_snapshot_is_successful(self):
+        with patch.object(self.service, 'icloud', return_value={'lists': [], 'reminders': []}):
+            self.assertEqual(self.service.list(account='icloud'), ([], []))

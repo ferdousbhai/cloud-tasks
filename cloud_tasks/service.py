@@ -76,6 +76,8 @@ class Tasks(Context):
             account = selected_name
         extra_warnings = []
         def load(name, cfg):
+            if cfg['provider'] == 'icloud':
+                return self.icloud_snapshot(name, selected_raw, extra_warnings)
             lists = self.provider_lists(name, cfg)
             if selected_raw is not None:
                 lists = [row for row in lists if row['raw_id'] == selected_raw]
@@ -85,13 +87,9 @@ class Tasks(Context):
             succeeded = 0
             for task_list in lists:
                 try:
-                    if cfg['provider'] == 'icloud':
-                        rows = array(self.icloud(['list', task_list['raw_id'], '--all']))
-                        output.extend(cloud_task(name, row, task_list) for row in rows)
-                    else:
-                        rows = self.pages(name, ['tasks', 'tasks', 'list'], {'tasklist': task_list['raw_id'],
-                            'maxResults': 100, 'showCompleted': True, 'showHidden': True, 'showAssigned': True}, 'items')
-                        output.extend(google_task(name, task_list, row) for row in rows if not row.get('deleted'))
+                    rows = self.pages(name, ['tasks', 'tasks', 'list'], {'tasklist': task_list['raw_id'],
+                        'maxResults': 100, 'showCompleted': True, 'showHidden': True, 'showAssigned': True}, 'items')
+                    output.extend(google_task(name, task_list, row) for row in rows if not row.get('deleted'))
                     succeeded += 1
                 except Failure as error:
                     extra_warnings.append({'account': name, 'list_id': task_list['id'], 'code': error.code, 'message': str(error)})
@@ -105,6 +103,37 @@ class Tasks(Context):
             rows = [row for row in rows if not row.get('completed')]
         rows.sort(key=lambda row: ((row.get('due') or {}).get('date') or '9999-12-31', row['title'].casefold(), row['id']))
         return rows, warnings + extra_warnings
+
+    def icloud_snapshot(self, name, selected_raw, warnings):
+        args = ['snapshot'] + (['--list', selected_raw] if selected_raw is not None else [])
+        snapshot = self.icloud(args)
+        if not isinstance(snapshot, dict):
+            raise Failure('bad_response', 'iCloud snapshot is not an object')
+        lists = array(snapshot.get('lists'), 'iCloud snapshot lists')
+        reminders = array(snapshot.get('reminders'), 'iCloud snapshot reminders')
+        by_id = {}
+        for row in lists:
+            if not isinstance(row, dict) or not isinstance(row.get('id'), str) or not row['id'] or not isinstance(row.get('name'), str):
+                raise Failure('bad_response', 'iCloud snapshot has an invalid list')
+            by_id[row['id']] = {**row, 'id': scoped_id(name, row['id'])}
+        if selected_raw is not None and selected_raw not in by_id:
+            raise Failure('not_found', 'No list with that ID')
+        warning = snapshot.get('warning')
+        if warning is not None and not isinstance(warning, str):
+            raise Failure('bad_response', 'iCloud snapshot warning is not text')
+        output = []
+        for row in reminders:
+            if not isinstance(row, dict) or not isinstance(row.get('id'), str) or not row['id'] or not isinstance(row.get('list'), dict):
+                raise Failure('bad_response', 'iCloud snapshot has an invalid reminder')
+            raw_list = row['list'].get('id')
+            if not isinstance(raw_list, str) or not raw_list:
+                raise Failure('bad_response', 'iCloud snapshot reminder has no list ID')
+            # As before, only tasks belonging to a returned list are listed.
+            if raw_list in by_id and (selected_raw is None or raw_list == selected_raw):
+                output.append(cloud_task(name, row, by_id[raw_list]))
+        if warning is not None:
+            warnings.append({'account': name, 'code': 'partial_sync', 'message': warning})
+        return output
 
     def target(self, identity):
         name, raw = split_id(identity)
