@@ -39,7 +39,9 @@ package() {
   cd "$(_srcdir)"
   install -d "$pkgdir/usr/lib/cloud-tasks" "$pkgdir/usr/bin"
   install -Dm755 "${CARGO_TARGET_DIR:-icloud/target}/release/cloud-tasks-icloud" "$pkgdir/usr/lib/cloud-tasks/libexec/cloud-tasks-icloud"
-  cp -r cloud_tasks bin skills "$pkgdir/usr/lib/cloud-tasks/"
+  # Only the entry point from bin/: the rest are the repository's build and release scripts.
+  cp -r cloud_tasks skills "$pkgdir/usr/lib/cloud-tasks/"
+  install -Dm755 bin/cloud-tasks "$pkgdir/usr/lib/cloud-tasks/bin/cloud-tasks"
   find "$pkgdir/usr/lib/cloud-tasks" -name __pycache__ -type d -exec rm -r {} +
   printf '%s\n' '#!/bin/sh' 'exec python /usr/lib/cloud-tasks/bin/cloud-tasks "$@"' > "$pkgdir/usr/bin/cloud-tasks"
   chmod 755 "$pkgdir/usr/bin/cloud-tasks"
